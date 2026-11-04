@@ -36,6 +36,10 @@ npm run build
 
 Não coloque credenciais, tokens de administrador ou segredos em variáveis `VITE_*`: variáveis com esse prefixo são incorporadas ao bundle público.
 
+**Bloqueio de segurança adicional:** as rotas administrativas legadas do backend da loja usam uma chave compartilhada `x-admin-key` e allowlist de IP; isso não é autenticação humana individual, não oferece MFA nem sessão revogável. Não conecte este painel diretamente a essas rotas e nunca exponha essa chave no navegador. A integração deve nascer com contas individuais, sessões HttpOnly/Secure/SameSite, CSRF, RBAC, MFA e auditoria no servidor.
+
+O pipeline executa `npm audit`, mas este repositório ainda não versiona `package-lock.json`; antes de produção, gerar e versionar um lockfile para builds reproduzíveis e auditoria de dependências determinística.
+
 ## Integração de produção necessária
 
 O painel pode ser hospedado em domínio/servidor separado, mas deve consumir uma API administrativa autenticada. A API e a loja pública precisam compartilhar a fonte oficial de dados; o frontend nunca deve acessar diretamente o banco.
