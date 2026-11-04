@@ -45,3 +45,18 @@ O contrato detalhado e critérios de aceite estão em `docs/ADMIN_INTEGRATION_PL
 ## Deploy
 
 O painel deve permanecer num repositório e projeto de hospedagem próprios. O deploy de frontend só ocorre após build e verificações CI. A API fica no servidor brasileiro e não deve ser embutida no bundle estático.
+
+
+## Cliente HTTP tipado (implementado na branch de integração)
+
+O módulo `src/lib/adminApi.ts` foi criado com:
+- login, consulta de sessão e logout por cookie de sessão;
+- token CSRF mantido apenas em memória, enviado em operações mutáveis;
+- `credentials: include`, `cache: no-store` e bloqueio de redirects;
+- tratamento uniforme de falhas de rede, HTTP e sessão expirada;
+- contratos TypeScript para operador, produto, pedido, paginação e auditoria;
+- operações de catálogo, upload multipart, pedidos, estoque e trilha de auditoria.
+
+Configure `VITE_ADMIN_API_URL` com a origem HTTPS do gateway administrativo. Essa variável contém somente uma URL pública, nunca uma chave ou segredo.
+
+**Importante:** o cliente é uma camada de integração, não prova que o backend já oferece esses endpoints. A interface ainda precisa migrar seus componentes para `adminApi`, e o servidor precisa implementar autenticação humana, sessões, CSRF, RBAC e os endpoints versionados. Até isso acontecer, mantenha o painel fora de uso operacional e não informe que as alterações foram publicadas.
