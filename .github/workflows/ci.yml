@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: lola-admin-ci-${{ github.event.pull_request.head.ref || github.ref }}
+  group: lola-admin-ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
