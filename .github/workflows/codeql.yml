@@ -2,7 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [main, feat/admin-integracao-producao]
+    branches: [main]
   pull_request:
     branches: [main]
   schedule:
