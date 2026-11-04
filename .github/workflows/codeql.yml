@@ -37,10 +37,17 @@ jobs:
           # Mantemos a análise real e arquivamos o SARIF como artefato auditável.
           upload: false
 
+      - name: Stage CodeQL SARIF results inside workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p codeql-results
+          cp ../results/*.sarif codeql-results/
+
       - name: Archive CodeQL SARIF results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: codeql-sarif-${{ github.sha }}
-          path: ../results/*.sarif
+          path: codeql-results/*.sarif
           if-no-files-found: error
           retention-days: 14
