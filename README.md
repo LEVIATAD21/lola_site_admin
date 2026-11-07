@@ -9,7 +9,7 @@ Painel administrativo independente da loja LOLA Aço Inox & Acessórios. O naveg
 - Criação, edição, exclusão protegida e ajuste de estoque passam pelo BFF.
 - O painel não usa mais seed/localStorage para catálogo operacional.
 - Pedidos/pré-pedidos, busca de clientes por nome/telefone, anonimização e exclusão LGPD e resumo operacional de até 100 pré-pedidos recentes estão conectados.
-- Notificações e configurações ainda não estão conectadas; o resumo financeiro não representa receita porque pagamentos não estão integrados.
+- Geração de link de rastreamento está conectada; atualização de eventos/código da transportadora ainda precisa de interface dedicada. Notificações e configurações seguem pendentes; o resumo financeiro não representa receita porque pagamentos não estão integrados.
 - A edição de imagem aceita URL; upload binário seguro e persistente ainda não está implementado.
 
 **Não declarar produção pronta:** sessão em memória, operador único sem MFA/RBAC e armazenamento de catálogo/estoque em arquivo single-process ainda limitam a operação.
@@ -98,7 +98,7 @@ Há um exemplo de Nginx em `deploy/nginx.conf.example`. Ele serve `dist/`, encam
 - Operador único: sem MFA, RBAC, convites, gestão de usuários ou revogação individual.
 - Upload binário: ainda não há pipeline de validação MIME real, decodificação, storage e remoção de órfãos.
 - Produtos não possuem fluxo completo de publicação/arquivamento; exclusão é recusada quando há saldo, venda, reserva ou hold.
-- Notificações e configurações ainda precisam de endpoints e telas; rastreamento operacional também precisa de interface dedicada.
+- Atualização de eventos/código da transportadora, notificações e configurações ainda precisam de interface/endpoints.
 - O relatório financeiro só pode mostrar valores solicitados em pré-pedidos, não receita conciliada, enquanto pagamentos não forem integrados.
 - O Data Server e o armazenamento em arquivo do Site são single-process; não declarar consistência multi-instância nem escalar horizontalmente sem banco transacional.
 - Configurar proxy HTTPS público do painel, firewall e allowlist privada; não publicar diretamente o Data Server.
