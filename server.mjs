@@ -117,8 +117,11 @@ function requireCsrf(req, res, next) {
 }
 function loginRateLimit(req, res, next) {
   const key = req.socket.remoteAddress || 'unknown';
-  if (loginBuckets.size > 10000 && !loginBuckets.has(key)) return res.status(503).json({ error: 'Autenticação temporariamente indisponível.' });
   const now = Date.now();
+  pruneState(now);
+  if (loginBuckets.size >= MAX_LOGIN_BUCKETS && !loginBuckets.has(key)) {
+    return res.status(503).json({ error: 'Autenticação temporariamente indisponível.' });
+  }
   const bucket = loginBuckets.get(key) || { count: 0, resetAt: now + 15 * 60_000 };
   if (bucket.resetAt <= now) { bucket.count = 0; bucket.resetAt = now + 15 * 60_000; }
   bucket.count += 1;
@@ -182,6 +185,24 @@ function requireCsrfForMutation(req, res, next) {
 app.all('/api/admin/*', requireSession, requireCsrfForMutation, (req, res, next) => proxy(req, res, next));
 app.all('/api/estoque/atualizar', requireSession, requireCsrf, (req, res, next) => proxy(req, res, next));
 
+async function readLimitedBody(response, maxBytes) {
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, total).toString('utf8');
+}
+
 async function proxy(req, res, next) {
   try {
     if (req.method !== 'GET' && !req.adminSession) return res.status(401).json({ error: 'Sessão ausente.' });
@@ -203,8 +224,8 @@ async function proxy(req, res, next) {
       signal: AbortSignal.timeout(5000),
     });
     if (response.status >= 300 && response.status < 400) return res.status(502).json({ error: 'Redirecionamento inesperado no serviço privado.' });
-    const text = await response.text();
-    if (Buffer.byteLength(text, 'utf8') > 256 * 1024) return res.status(502).json({ error: 'Resposta excede o limite permitido.' });
+    const text = await readLimitedBody(response, 256 * 1024);
+    if (text === null) return res.status(502).json({ error: 'Resposta excede o limite permitido.' });
     let payload;
     try { payload = text ? JSON.parse(text) : {}; } catch { return res.status(502).json({ error: 'Resposta inválida do serviço privado.' }); }
     return res.status(response.status).json(payload);
