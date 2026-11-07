@@ -53,6 +53,15 @@ npm run dev
 
 O Vite encaminha `/api` para `127.0.0.1:4101`. O BFF escuta em loopback por padrão.
 
+## Configuração de rede do Data Server
+
+Como o Data Server fica em outro host:
+- Defina `LOLA_BIND_HOST` como o IP privado da interface que recebe o tráfego do BFF. O padrão é `127.0.0.1`, que só aceita conexões locais.
+- Configure `LOLA_ADMIN_ALLOWED_IPS` com o IP de origem que o Data Server realmente enxerga para o BFF (ou o IP do proxy privado, se houver). Não use `any`.
+- Configure `LOLA_INTERNAL_SECRET` no Data Server e no servidor público do Site para o canal HMAC entre eles. Essa chave não é a chave administrativa do BFF.
+- Configure `LOLA_TLS_CERT_FILE` e `LOLA_TLS_KEY_FILE` no Data Server para TLS quando o BFF estiver em host remoto; o BFF recusa HTTP remoto em produção.
+- Restrinja a porta do Data Server no firewall para aceitar somente o Site público, o BFF e o monitoramento necessário. Não publique a porta na internet.
+
 ## Endpoints BFF
 
 - `GET /api/health` — saúde do BFF.
