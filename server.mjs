@@ -175,6 +175,11 @@ function allowedUpstream(method, pathname) {
   if (method === 'POST' && /^\/api\/admin\/pre-pedidos\/[A-Z0-9-]+\/redact$/.test(pathname)) return pathname;
   if (method === 'DELETE' && /^\/api\/admin\/pre-pedidos\/[A-Z0-9-]+$/.test(pathname)) return pathname;
   if (method === 'POST' && /^\/api\/admin\/rastreios\/LOLA-\d{8}-[A-F0-9]{12}$/.test(pathname)) return pathname;
+  if (method === 'GET' && pathname === '/api/admin/catalog') return pathname;
+  if (method === 'POST' && pathname === '/api/admin/catalog') return pathname;
+  if (method === 'PUT' && /^\/api\/admin\/catalog\/[a-z0-9][a-z0-9_-]{1,63}$/.test(pathname)) return pathname;
+  if (method === 'DELETE' && /^\/api\/admin\/catalog\/[a-z0-9][a-z0-9_-]{1,63}$/.test(pathname)) return pathname;
+  if (method === 'POST' && pathname === '/api/estoque/definir') return pathname;
   if (method === 'POST' && pathname === '/api/estoque/atualizar') return pathname;
   return null;
 }
