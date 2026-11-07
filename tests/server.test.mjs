@@ -169,6 +169,24 @@ test('interrompe resposta upstream maior que 256 KiB', async () => {
   assert.match((await response.json()).error, /limite/i);
 });
 
+test('encaminha ajuste absoluto de estoque somente com sessão e CSRF', async () => {
+  const session = await login();
+  const denied = await fetch(`http://${HOST}:${bffPort}/api/estoque/definir`, {
+    method: 'POST',
+    headers: { cookie: session.cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ productId: 'prod-test-01', quantidade: 12 }),
+  });
+  assert.equal(denied.status, 403);
+  const accepted = await fetch(`http://${HOST}:${bffPort}/api/estoque/definir`, {
+    method: 'POST',
+    headers: { cookie: session.cookie, 'x-csrf-token': session.csrf, 'content-type': 'application/json' },
+    body: JSON.stringify({ productId: 'prod-test-01', quantidade: 12 }),
+  });
+  assert.equal(accepted.status, 200);
+  assert.equal(upstreamRequests.at(-1).url, '/api/estoque/definir');
+  assert.equal(upstreamRequests.at(-1).key, ADMIN_KEY);
+});
+
 test('aplica limite de dez tentativas de login por janela', async () => {
   for (let index = 0; index < 10; index += 1) {
     const response = await fetch(`http://${HOST}:${bffPort}/api/login`, {
