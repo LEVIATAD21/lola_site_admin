@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { csvCell } from './csv';
+import { csvCell } from './csv.mjs';
 
 test('neutraliza fórmulas em células CSV', () => {
   assert.equal(csvCell('=HYPERLINK("https://evil.example","abrir")'), '"\'=HYPERLINK(""https://evil.example"",""abrir"")"');
