@@ -54,6 +54,8 @@ npm run dev
 
 O Vite encaminha `/api` para `127.0.0.1:4101`. O BFF escuta em loopback por padrão.
 
+Configure também `LOLA_PUBLIC_SITE_URL` com a origem HTTPS da vitrine (por exemplo, `https://loja.seudominio.com.br`). O painel usa essa origem para montar links absolutos de rastreamento; sem ela, só consegue mostrar o caminho relativo.
+
 ## Configuração de rede do Data Server
 
 Como o Data Server fica em outro host:
