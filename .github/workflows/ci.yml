@@ -1,18 +1,35 @@
-name: CI
+name: LOLA Admin CI
+
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - work/lola-admin-integration-2026-11-07
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - work/lola-admin-integration-2026-11-07
+
 permissions:
   contents: read
+
+concurrency:
+  group: lola-admin-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - run: npm install
-      - run: npm run build
+          node-version: 22.12.0
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: TypeScript validation
+        run: npm run lint
+      - name: Production build
+        run: npm run build
