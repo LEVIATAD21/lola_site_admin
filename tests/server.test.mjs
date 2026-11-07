@@ -127,6 +127,21 @@ test('autentica, emite cookie protegido e exige CSRF em mutações', async () =>
   assert.equal(response.status, 403);
 });
 
+test('logout invalida a sessão no servidor e remove o cookie', async () => {
+  const session = await login();
+  const response = await fetch(`http://${HOST}:${bffPort}/api/logout`, {
+    method: 'POST',
+    headers: { cookie: session.cookie, 'x-csrf-token': session.csrf },
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('set-cookie') || '', /Max-Age=0/i);
+
+  const after = await fetch(`http://${HOST}:${bffPort}/api/session`, {
+    headers: { cookie: session.cookie },
+  });
+  assert.equal(after.status, 401);
+});
+
 test('encaminha somente rota permitida e injeta a chave no servidor', async () => {
   const session = await login();
   const response = await fetch(`http://${HOST}:${bffPort}/api/admin/pre-pedidos?limit=2`, {
