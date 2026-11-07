@@ -40,6 +40,18 @@ if (production && (host === '0.0.0.0' || host === '::') && process.env.LOLA_ADMI
 const sessions = new Map();
 const loginBuckets = new Map();
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const MAX_SESSIONS = 10_000;
+const MAX_LOGIN_BUCKETS = 10_000;
+const MAX_CREDENTIAL_LENGTH = 256;
+
+function pruneState(now = Date.now()) {
+  for (const [id, session] of sessions) {
+    if (session.expiresAt <= now) sessions.delete(id);
+  }
+  for (const [ip, bucket] of loginBuckets) {
+    if (bucket.resetAt <= now) loginBuckets.delete(ip);
+  }
+}
 const COOKIE = 'lola_admin_session';
 const COOKIE_SECURE = production || process.env.LOLA_ADMIN_COOKIE_SECURE === 'true';
 
@@ -60,9 +72,11 @@ function safeEqual(a, b) {
 function cookieValue(req) {
   const raw = req.headers.cookie || '';
   const entry = raw.split(';').map((part) => part.trim()).find((part) => part.startsWith(COOKIE + '='));
-  return entry ? decodeURIComponent(entry.slice(COOKIE.length + 1)) : '';
+  if (!entry) return '';
+  try { return decodeURIComponent(entry.slice(COOKIE.length + 1)); } catch { return ''; }
 }
 function getSession(req) {
+  pruneState();
   const value = cookieValue(req);
   const [id, signature, extra] = value.split('.');
   if (!id || !signature || extra || !safeEqual(signature, mac(id))) return null;
@@ -115,6 +129,7 @@ function loginRateLimit(req, res, next) {
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/api/session', (req, res) => {
+  pruneState();
   const session = getSession(req);
   if (!session) return res.status(401).json({ authenticated: false });
   return res.json({ authenticated: true, csrfToken: session.csrf, expiresAt: session.expiresAt });
@@ -127,9 +142,16 @@ app.post('/api/login', loginRateLimit, (req, res) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const suppliedUser = typeof body.username === 'string' ? body.username : '';
   const suppliedPassword = typeof body.password === 'string' ? body.password : '';
+  if (suppliedUser.length > MAX_CREDENTIAL_LENGTH || suppliedPassword.length > MAX_CREDENTIAL_LENGTH) {
+    return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+  }
   const userOk = safeEqual(suppliedUser, username);
   const passOk = safeEqual(suppliedPassword, password);
   if (!userOk || !passOk) return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+  pruneState();
+  if (sessions.size >= MAX_SESSIONS) {
+    return res.status(503).json({ error: 'Limite temporário de sessões atingido.' });
+  }
   const id = randomBytes(32).toString('hex');
   const csrf = randomBytes(32).toString('hex');
   const expiresAt = Date.now() + SESSION_TTL_MS;
