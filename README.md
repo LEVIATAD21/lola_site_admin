@@ -76,6 +76,10 @@ Consulte `.env.example`. Em produção:
 - `LOLA_DATA_SERVICE_URL` deve usar `https://` quando o Data Server estiver em host remoto.
 - Nunca definir qualquer segredo com prefixo `VITE_`.
 
+## Proxy HTTPS de produção
+
+Há um exemplo de Nginx em `deploy/nginx.conf.example`. Ele serve `dist/`, encaminha somente `/api/` ao BFF em loopback, aplica TLS, CSP, HSTS, proteção contra framing e `X-Robots-Tag`. Revise domínio, certificados, diretório de build e versão do Nginx antes de usar. O exemplo não configura firewall nem a allowlist do Data Server.
+
 ## Limitações e próximos bloqueios
 
 - Sessões em memória: reiniciar o BFF invalida sessões; não há store compartilhado para múltiplas instâncias.
