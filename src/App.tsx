@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState,type ReactNode,type FormEvent} from 'react';
-import {LayoutDashboard,Package,Boxes,ShoppingBag,Users,Activity,Settings,Search,Plus,Pencil,Trash2,ImagePlus,Download,ShieldCheck,Bell,Menu,X,Check,AlertTriangle,Eye,Save,Upload} from 'lucide-react';
+import {LayoutDashboard,Package,Boxes,ShoppingBag,Users,Activity,Settings,Search,Plus,Pencil,Trash2,ImagePlus,Download,ShieldCheck,Bell,Menu,X,Check,AlertTriangle,Eye,Save} from 'lucide-react';
 type Product={id:string;name:string;category:string;sku:string;price:number;stock:number;published:boolean;image:string;material:string;color:string;desc:string};
 type ApiProduct={id:string;name:string;category:string;price:number;material?:string;color?:string;desc?:string;image?:string;disponivel:number};
 const mapProduct=(p:ApiProduct):Product=>({id:p.id,name:p.name,category:p.category,sku:p.id.toUpperCase(),price:p.price,stock:p.disponivel,published:true,image:p.image||'',material:p.material||'Aço inox',color:p.color||'Não informado',desc:p.desc||''});
