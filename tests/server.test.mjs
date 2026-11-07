@@ -154,6 +154,27 @@ test('encaminha somente rota permitida e injeta a chave no servidor', async () =
   assert.equal(last.url, '/api/admin/pre-pedidos?limit=2');
 });
 
+test('encaminha busca LGPD por titular com sessão e preserva a query', async () => {
+  const session = await login();
+  const response = await fetch(`http://${HOST}:${bffPort}/api/admin/titular?telefone=21987654321`, {
+    headers: { cookie: session.cookie },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(upstreamRequests.at(-1).url, '/api/admin/titular?telefone=21987654321');
+  assert.equal(upstreamRequests.at(-1).key, ADMIN_KEY);
+});
+
+test('encaminha exclusão LGPD somente com sessão e CSRF', async () => {
+  const session = await login();
+  const response = await fetch(`http://${HOST}:${bffPort}/api/admin/pre-pedidos/LOLA-20261107-ABCDEF123456`, {
+    method: 'DELETE',
+    headers: { cookie: session.cookie, 'x-csrf-token': session.csrf },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(upstreamRequests.at(-1).method, 'DELETE');
+  assert.equal(upstreamRequests.at(-1).key, ADMIN_KEY);
+});
+
 test('nega caminhos administrativos fora da allowlist', async () => {
   const session = await login();
   const response = await fetch(`http://${HOST}:${bffPort}/api/admin/usuarios`, {
