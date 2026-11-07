@@ -99,3 +99,8 @@ npm run build
 ```
 
 O CI da branch executa os testes HTTP de segurança, validação TypeScript e build. Sempre consultar a execução mais recente do GitHub antes de declarar uma alteração validada.
+
+
+## Auditoria de segurança
+
+Relatório mestre em [LOLA Site — docs/SECURITY_AUDIT_2026-11-07.md](https://github.com/LEVIATAD21/lola_site/blob/work/lola-integration-2026-11-07/docs/SECURITY_AUDIT_2026-11-07.md).
