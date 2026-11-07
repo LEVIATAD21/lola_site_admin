@@ -1,19 +1,25 @@
 # LOLA — Painel Administrativo
 
-Aplicação administrativa independente para LOLA Aço Inox & Acessórios.
+Painel administrativo independente da loja LOLA Aço Inox & Acessórios. O navegador conversa somente com o BFF deste repositório; o BFF encaminha operações permitidas ao Data Server privado do repositório `LEVIATAD21/lola_site`.
 
-## Estado atual
+## Estado desta branch
 
-O frontend ainda contém dados de demonstração e a integração completa de catálogo CRUD não está concluída. O BFF inicial foi adicionado nesta branch para estabelecer uma fronteira servidor-servidor: credenciais administrativas ficam no processo Node e não no bundle React/Vite.
+- Login de operador único por variáveis de ambiente, sessão HttpOnly/SameSite e CSRF nas mutações.
+- Catálogo real carregado pelo endpoint administrativo do Data Server.
+- Criação, edição, exclusão protegida e ajuste de estoque passam pelo BFF.
+- O painel não usa mais seed/localStorage para catálogo operacional.
+- As seções de pedidos, clientes, relatórios, configurações e notificações ainda não estão conectadas.
+- A edição de imagem aceita URL; upload binário seguro e persistente ainda não está implementado.
 
-**Não considerar este painel pronto para produção.** A interface ainda precisa trocar o fluxo demonstrativo por chamadas reais da API, e o Data Server do Site ainda precisa disponibilizar CRUD persistente do catálogo.
+**Não declarar produção pronta:** sessão em memória, operador único sem MFA/RBAC e armazenamento de catálogo/estoque em arquivo single-process ainda limitam a operação.
 
 ## Requisitos
 
 - Node.js 22.12 ou superior.
-- Data Server do repositório LOLA SITE acessível pelo BFF.
-- IP de saída do BFF incluído em `LOLA_ADMIN_ALLOWED_IPS` no Data Server.
-- `LOLA_ADMIN_API_KEY` configurada somente no ambiente do BFF e do Data Server.
+- Data Server do repositório LOLA SITE acessível a partir do BFF.
+- IP privado de saída do BFF incluído em `LOLA_ADMIN_ALLOWED_IPS` no Data Server.
+- `LOLA_ADMIN_API_KEY` igual nos ambientes servidor do Admin e do Data Server; nunca no Vite/browser.
+- Em hosts separados, HTTPS entre BFF e Data Server.
 
 ## Configuração local
 
@@ -23,57 +29,69 @@ O frontend ainda contém dados de demonstração e a integração completa de ca
 npm install
 ```
 
-2. Copie `.env.example` para `.env` e preencha os valores. Gere `LOLA_ADMIN_SESSION_SECRET` com:
+2. Copie `.env.example` para `.env` e substitua todos os placeholders. Gere segredos aleatórios:
 
 ```bash
 openssl rand -hex 32
 ```
 
-3. Inicie o BFF:
+Use valores diferentes para `LOLA_ADMIN_SESSION_SECRET` e para `LOLA_ADMIN_API_KEY`. A chave administrativa deve ser compartilhada apenas entre os dois processos de servidor.
+
+3. Inicie o Data Server do LOLA SITE em outro terminal, com `LOLA_ADMIN_API_KEY` e `LOLA_ADMIN_ALLOWED_IPS` configuradas.
+
+4. Inicie o BFF:
 
 ```bash
 npm run dev:api
 ```
 
-4. Em outro terminal, inicie a interface:
+5. Inicie a interface:
 
 ```bash
 npm run dev
 ```
 
-O Vite encaminha `/api` para o BFF em `127.0.0.1:4101`. O BFF, por padrão, escuta somente em loopback.
+O Vite encaminha `/api` para `127.0.0.1:4101`. O BFF escuta em loopback por padrão.
 
-## Endpoints BFF presentes nesta etapa
+## Endpoints BFF
 
 - `GET /api/health` — saúde do BFF.
-- `POST /api/login` — autenticação do operador via variáveis de ambiente.
-- `GET /api/session` — estado da sessão e token CSRF.
-- `POST /api/logout` — encerra sessão (exige CSRF).
-- Proxy autenticado para as rotas administrativas existentes no Site: consulta de pré-pedidos/titular, rastreamento e ajuste de estoque.
+- `POST /api/login` — autenticação do operador.
+- `GET /api/session` — sessão atual e token CSRF.
+- `POST /api/logout` — encerra a sessão (exige CSRF).
+- `GET /api/admin/catalog` — lista catálogo e disponibilidade.
+- `POST /api/admin/catalog` — cria produto.
+- `PUT /api/admin/catalog/:id` — atualiza dados do produto.
+- `DELETE /api/admin/catalog/:id` — remove somente quando as regras de integridade do Site permitem.
+- `POST /api/estoque/definir` — define saldo absoluto (inteiro não negativo).
 
-A sessão é mantida em memória neste primeiro incremento: reiniciar o processo invalida as sessões. É um BFF inicial para ambiente controlado, ainda sem MFA, gestão multiusuário/roles, persistência de sessão ou integração de todas as telas.
+O BFF injeta `x-admin-key` no servidor; o navegador nunca recebe essa chave. Mutações exigem sessão e CSRF. O proxy restringe métodos/caminhos, limita corpo/resposta, aplica timeout e não segue redirects.
 
-## Limitações explícitas / próximos bloqueios
+## Variáveis de ambiente do BFF
 
-- O Data Server ainda não oferece CRUD de catálogo; as rotas atuais não permitem criar/editar/publicar produtos.
-- O frontend ainda não foi migrado do seed/localStorage para o BFF.
-- Upload persistente, pedidos completos, clientes, relatórios e auditoria visual ainda não estão integrados.
-- O BFF usa um operador configurado por ambiente; antes de produção, implementar gestão de identidade, MFA, rotação de sessão e armazenamento apropriado.
-- A allowlist do Data Server deve aceitar somente o endereço privado do BFF; nunca abrir a API administrativa à internet.
-- Em produção, usar HTTPS entre BFF e Data Server quando estiverem em hosts diferentes, proxy HTTPS na entrada e cookie Secure.
+Consulte `.env.example`. Em produção:
+- `NODE_ENV=production`
+- `LOLA_ADMIN_COOKIE_SECURE=true`
+- `LOLA_ADMIN_BEHIND_HTTPS_PROXY=true` quando o bind público estiver atrás de proxy TLS.
+- `LOLA_DATA_SERVICE_URL` deve usar `https://` quando o Data Server estiver em host remoto.
+- Nunca definir qualquer segredo com prefixo `VITE_`.
 
-## Segurança
+## Limitações e próximos bloqueios
 
-- Não coloque credenciais, tokens, chaves administrativas ou segredos em variáveis `VITE_*`.
-- Não commite `.env`; somente `.env.example` sem valores reais.
-- O BFF rejeita configuração incompleta, restringe caminhos upstream, não segue redirects, usa timeout, limita payload/resposta, sessão HttpOnly/SameSite e validação CSRF nas mutações.
-- O processo e as sessões são single-instance nesta primeira versão. Não escalar horizontalmente sem store compartilhado e estratégia de sessão adequada.
+- Sessões em memória: reiniciar o BFF invalida sessões; não há store compartilhado para múltiplas instâncias.
+- Operador único: sem MFA, RBAC, convites, gestão de usuários ou revogação individual.
+- Upload binário: ainda não há pipeline de validação MIME real, decodificação, storage e remoção de órfãos.
+- Produtos não possuem fluxo completo de publicação/arquivamento; exclusão é recusada quando há saldo, venda, reserva ou hold.
+- Pedidos, clientes, relatórios, configurações e notificações ainda precisam de endpoints e telas integrados.
+- O Data Server e o armazenamento em arquivo do Site são single-process; não declarar consistência multi-instância nem escalar horizontalmente sem banco transacional.
+- Configurar proxy HTTPS público do painel, firewall e allowlist privada; não publicar diretamente o Data Server.
 
-## Validar
+## Testes
 
 ```bash
+npm test
 npm run lint
 npm run build
 ```
 
-Os comandos precisam ser executados em ambiente com dependências instaladas; a existência do código não comprova que os testes passaram.
+O CI da branch executa os testes HTTP de segurança, validação TypeScript e build. Sempre consultar a execução mais recente do GitHub antes de declarar uma alteração validada.
