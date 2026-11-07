@@ -2,7 +2,6 @@ import express from 'express';
 import {
   createHmac, randomBytes, timingSafeEqual,
 } from 'node:crypto';
-import { isIP } from 'node:net';
 
 const app = express();
 app.disable('x-powered-by');
@@ -50,7 +49,13 @@ function mac(value) {
 function safeEqual(a, b) {
   const left = Buffer.from(String(a));
   const right = Buffer.from(String(b));
-  return left.length === right.length && timingSafeEqual(left, right);
+  const length = Math.max(left.length, right.length, 1);
+  const paddedLeft = Buffer.alloc(length);
+  const paddedRight = Buffer.alloc(length);
+  left.copy(paddedLeft);
+  right.copy(paddedRight);
+  const equal = timingSafeEqual(paddedLeft, paddedRight);
+  return left.length === right.length && equal;
 }
 function cookieValue(req) {
   const raw = req.headers.cookie || '';
@@ -98,6 +103,7 @@ function requireCsrf(req, res, next) {
 }
 function loginRateLimit(req, res, next) {
   const key = req.socket.remoteAddress || 'unknown';
+  if (loginBuckets.size > 10000 && !loginBuckets.has(key)) return res.status(503).json({ error: 'Autenticação temporariamente indisponível.' });
   const now = Date.now();
   const bucket = loginBuckets.get(key) || { count: 0, resetAt: now + 15 * 60_000 };
   if (bucket.resetAt <= now) { bucket.count = 0; bucket.resetAt = now + 15 * 60_000; }
@@ -114,6 +120,10 @@ app.get('/api/session', (req, res) => {
   return res.json({ authenticated: true, csrfToken: session.csrf, expiresAt: session.expiresAt });
 });
 app.post('/api/login', loginRateLimit, (req, res) => {
+  const origin = req.get('origin');
+  if (origin && origin !== req.get('host') && origin !== `https://${req.get('host')}` && origin !== `http://${req.get('host')}`) {
+    return res.status(403).json({ error: 'Origem não autorizada.' });
+  }
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const suppliedUser = typeof body.username === 'string' ? body.username : '';
   const suppliedPassword = typeof body.password === 'string' ? body.password : '';
@@ -134,12 +144,6 @@ app.post('/api/logout', requireSession, requireCsrf, (req, res) => {
   return res.json({ success: true });
 });
 
-const routes = new Map([
-  ['GET /api/admin/pre-pedidos', '/api/admin/pre-pedidos'],
-  ['GET /api/admin/titular', '/api/admin/titular'],
-  ['POST /api/admin/rastreios', null],
-  ['POST /api/estoque/atualizar', '/api/estoque/atualizar'],
-]);
 function allowedUpstream(method, pathname) {
   if (method === 'GET' && /^\/api\/admin\/pre-pedidos(?:\/[A-Z0-9-]+)?$/.test(pathname)) return pathname;
   if (method === 'GET' && pathname === '/api/admin/titular') return pathname;
@@ -149,13 +153,16 @@ function allowedUpstream(method, pathname) {
   if (method === 'POST' && pathname === '/api/estoque/atualizar') return pathname;
   return null;
 }
-app.all('/api/admin/*', requireSession, (req, res, next) => proxy(req, res, next));
+function requireCsrfForMutation(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD') return next();
+  return requireCsrf(req, res, next);
+}
+app.all('/api/admin/*', requireSession, requireCsrfForMutation, (req, res, next) => proxy(req, res, next));
 app.all('/api/estoque/atualizar', requireSession, requireCsrf, (req, res, next) => proxy(req, res, next));
 
 async function proxy(req, res, next) {
   try {
     if (req.method !== 'GET' && !req.adminSession) return res.status(401).json({ error: 'Sessão ausente.' });
-    if (req.method !== 'GET' && !req.get('x-csrf-token')) return res.status(403).json({ error: 'Token CSRF obrigatório.' });
     const pathname = req.path;
     const safePath = allowedUpstream(req.method, pathname);
     if (!safePath) return res.status(404).json({ error: 'Operação administrativa não permitida.' });
@@ -186,6 +193,11 @@ async function proxy(req, res, next) {
 }
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint não encontrado.' }));
+app.use((error, _req, res, _next) => {
+  const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 500 ? error.status : 500;
+  if (status >= 500) console.error('[lola-admin] erro HTTP interno:', error instanceof Error ? error.message : 'erro desconhecido');
+  return res.status(status).json({ error: status === 413 ? 'Requisição excede o limite permitido.' : 'Não foi possível processar a requisição.' });
+});
 app.listen(port, host, () => {
   console.log(`[lola-admin] BFF ativo em http://${host}:${port}; ambiente=${production ? 'production' : 'development'}`);
 });
