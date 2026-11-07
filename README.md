@@ -8,7 +8,7 @@ Painel administrativo independente da loja LOLA Aço Inox & Acessórios. O naveg
 - Catálogo real carregado pelo endpoint administrativo do Data Server.
 - Criação, edição, exclusão protegida e ajuste de estoque passam pelo BFF.
 - O painel não usa mais seed/localStorage para catálogo operacional.
-- Pedidos/pré-pedidos, busca de clientes por nome/telefone, anonimização LGPD e resumo operacional de pré-pedidos estão conectados.
+- Pedidos/pré-pedidos, busca de clientes por nome/telefone, anonimização e exclusão LGPD e resumo operacional de até 100 pré-pedidos recentes estão conectados.
 - Notificações e configurações ainda não estão conectadas; o resumo financeiro não representa receita porque pagamentos não estão integrados.
 - A edição de imagem aceita URL; upload binário seguro e persistente ainda não está implementado.
 
