@@ -188,6 +188,7 @@ function requireCsrfForMutation(req, res, next) {
   return requireCsrf(req, res, next);
 }
 app.all('/api/admin/*', requireSession, requireCsrfForMutation, (req, res, next) => proxy(req, res, next));
+app.all('/api/estoque/definir', requireSession, requireCsrf, (req, res, next) => proxy(req, res, next));
 app.all('/api/estoque/atualizar', requireSession, requireCsrf, (req, res, next) => proxy(req, res, next));
 
 async function readLimitedBody(response, maxBytes) {
