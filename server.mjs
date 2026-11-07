@@ -15,6 +15,7 @@ const password = process.env.LOLA_ADMIN_PASSWORD || '';
 const sessionSecret = process.env.LOLA_ADMIN_SESSION_SECRET || '';
 const dataServiceUrl = process.env.LOLA_DATA_SERVICE_URL || '';
 const adminApiKey = process.env.LOLA_ADMIN_API_KEY || '';
+const publicSiteUrl = process.env.LOLA_PUBLIC_SITE_URL || '';
 
 function fail(message) {
   console.error('[lola-admin] configuração inválida:', message);
@@ -25,6 +26,15 @@ if (username.length < 3 || password.length < 16) fail('Defina LOLA_ADMIN_USERNAM
 if (sessionSecret.length < 32) fail('LOLA_ADMIN_SESSION_SECRET precisa ter pelo menos 32 caracteres.');
 if (adminApiKey.length < 32) fail('LOLA_ADMIN_API_KEY precisa ter pelo menos 32 caracteres.');
 if (!dataServiceUrl) fail('LOLA_DATA_SERVICE_URL é obrigatória.');
+if (publicSiteUrl) {
+  let publicUrl;
+  try { publicUrl = new URL(publicSiteUrl); } catch { fail('LOLA_PUBLIC_SITE_URL inválida.'); }
+  if (!['http:', 'https:'].includes(publicUrl.protocol) || publicUrl.username || publicUrl.password ||
+      publicUrl.search || publicUrl.hash || publicUrl.pathname !== '/') {
+    fail('LOLA_PUBLIC_SITE_URL deve ser a origem pública HTTPS da loja, sem caminho, credenciais ou query.');
+  }
+  if (production && publicUrl.protocol !== 'https:') fail('LOLA_PUBLIC_SITE_URL deve usar HTTPS em produção.');
+}
 let upstream;
 try { upstream = new URL(dataServiceUrl); } catch { fail('LOLA_DATA_SERVICE_URL inválida.'); }
 if (!['http:', 'https:'].includes(upstream.protocol) || upstream.username || upstream.password || upstream.search || upstream.hash) {
@@ -131,6 +141,7 @@ function loginRateLimit(req, res, next) {
 }
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/public-config', requireSession, (_req, res) => res.json({ publicSiteUrl }));
 app.get('/api/session', (req, res) => {
   pruneState();
   const session = getSession(req);
