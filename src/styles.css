@@ -13,3 +13,6 @@
 .order-items{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .order-items span{padding:6px 9px;border-radius:7px;background:#f6f1eb;color:#5d5148;font-size:12px}
 @media(max-width:640px){.order-card{padding:13px}.order-body{align-items:flex-start}.order-head{align-items:flex-start}}
+
+.tracking-link{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding:10px;border:1px solid #e7ddd2;border-radius:9px;background:#fbf8f4}
+.tracking-link code{flex:1;min-width:180px;overflow-wrap:anywhere;color:#4e443d;font-size:12px}
