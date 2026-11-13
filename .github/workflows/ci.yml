@@ -28,26 +28,7 @@ jobs:
         with:
           node-version: 22.12.0
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      # Temporary extraction step: the lockfile is public dependency metadata.
-      # Remove this immediately once the lock is committed.
-      - name: Export dependency lock as base64 chunks for one-time migration
-        shell: bash
-        run: |
-          node - <<'NODE'
-          const { readFileSync } = require('node:fs');
-          const lock = readFileSync('package-lock.json').toString('base64');
-          for (let i = 0; i < lock.length; i += 1024) {
-            console.log('LOLA_LOCK_CHUNK:' + lock.slice(i, i + 1024));
-          }
-          NODE
-      - name: Archive generated dependency lockfile
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: generated-admin-lock-${{ github.sha }}
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 3
+        run: npm ci --no-audit --no-fund
       - name: Dependency audit
         run: npm audit --audit-level=high
       - name: BFF security regression tests
