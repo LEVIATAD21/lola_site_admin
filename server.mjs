@@ -71,6 +71,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const MAX_SESSIONS = 10_000;
 const MAX_LOGIN_BUCKETS = 10_000;
 const MAX_CREDENTIAL_LENGTH = 256;
+// Per-session cap limits abusive/compromised authenticated clients without
+// maintaining an unbounded second in-memory keyspace.
+const MAX_AUTH_REQUESTS_PER_MINUTE = 120;
 
 function pruneState(now = Date.now()) {
   for (const [id, session] of sessions) {
@@ -126,6 +129,9 @@ function noStore(_req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
   next();
 }
@@ -134,6 +140,17 @@ app.use(noStore);
 function requireSession(req, res, next) {
   const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Sessão administrativa ausente ou expirada.' });
+  const state = sessions.get(session.id);
+  if (!state) return res.status(401).json({ error: 'Sessão administrativa ausente ou expirada.' });
+  const now = Date.now();
+  if (!state.requestBudget || state.requestBudget.resetAt <= now) {
+    state.requestBudget = { count: 0, resetAt: now + 60_000 };
+  }
+  state.requestBudget.count += 1;
+  if (state.requestBudget.count > MAX_AUTH_REQUESTS_PER_MINUTE) {
+    res.setHeader('Retry-After', String(Math.max(1, Math.ceil((state.requestBudget.resetAt - now) / 1000))));
+    return res.status(429).json({ error: 'Limite temporário de operações atingido.' });
+  }
   req.adminSession = session;
   return next();
 }
@@ -265,7 +282,8 @@ async function proxy(req, res, next) {
     try { payload = text ? JSON.parse(text) : {}; } catch { return res.status(502).json({ error: 'Resposta inválida do serviço privado.' }); }
     return res.status(response.status).json(payload);
   } catch (error) {
-    console.error('[lola-admin] falha no serviço privado:', error instanceof Error ? error.message : 'erro desconhecido');
+    // Never log upstream URLs, queries, secrets or potentially sensitive error messages.
+    console.error('[lola-admin] falha no serviço privado:', error instanceof Error ? error.name : 'UnknownError');
     return res.status(503).json({ error: 'Serviço administrativo temporariamente indisponível.' });
   }
 }
@@ -273,7 +291,7 @@ async function proxy(req, res, next) {
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint não encontrado.' }));
 app.use((error, _req, res, _next) => {
   const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 500 ? error.status : 500;
-  if (status >= 500) console.error('[lola-admin] erro HTTP interno:', error instanceof Error ? error.message : 'erro desconhecido');
+  if (status >= 500) console.error('[lola-admin] erro HTTP interno:', error instanceof Error ? error.name : 'UnknownError');
   return res.status(status).json({ error: status === 413 ? 'Requisição excede o limite permitido.' : 'Não foi possível processar a requisição.' });
 });
 app.listen(port, host, () => {
