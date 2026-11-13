@@ -84,7 +84,10 @@ O BFF injeta `x-admin-key` no servidor; o navegador nunca recebe essa chave. Mut
 Consulte `.env.example`. Em produção:
 - `NODE_ENV=production`
 - `LOLA_ADMIN_COOKIE_SECURE=true`
-- `LOLA_ADMIN_BEHIND_HTTPS_PROXY=true` quando o bind público estiver atrás de proxy TLS.
+- `LOLA_ADMIN_BEHIND_HTTPS_PROXY=true` ao publicar o BFF atrás de proxy TLS.
+- `LOLA_ADMIN_TRUSTED_PROXY_IPS=127.0.0.1` se Nginx estiver no mesmo host; se estiver em outro host, use o IP de origem real do proxy. Apenas IPs explícitos, sem curingas.
+- O proxy deve **sobrescrever** `X-Real-IP` com o IP de conexão do cliente. O BFF ignora `X-Real-IP` quando o peer não é um proxy autorizado.
+- O processo recusa nomes/segredos de exemplo e recusa bind não local em produção sem declaração de proxy HTTPS. Não publicar o BFF diretamente na internet.
 - `LOLA_DATA_SERVICE_URL` deve usar `https://` quando o Data Server estiver em host remoto.
 - Nunca definir qualquer segredo com prefixo `VITE_`.
 
