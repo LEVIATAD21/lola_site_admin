@@ -1,4 +1,5 @@
 import express from 'express';
+import { isIP } from 'node:net';
 import {
   createHmac, randomBytes, timingSafeEqual,
 } from 'node:crypto';
@@ -23,8 +24,11 @@ function fail(message) {
 }
 if (!Number.isInteger(port) || port < 1 || port > 65535) fail('PORT inválida.');
 if (username.length < 3 || password.length < 16) fail('Defina LOLA_ADMIN_USERNAME e LOLA_ADMIN_PASSWORD (mínimo 16 caracteres na senha).');
-if (sessionSecret.length < 32) fail('LOLA_ADMIN_SESSION_SECRET precisa ter pelo menos 32 caracteres.');
-if (adminApiKey.length < 32) fail('LOLA_ADMIN_API_KEY precisa ter pelo menos 32 caracteres.');
+if (username.toLowerCase() === 'operador' || /^SUBSTITUA_/i.test(username) || /^SUBSTITUA_/i.test(password)) {
+  fail('Substitua as credenciais de demonstração. Os valores publicados em .env.example são proibidos.');
+}
+if (sessionSecret.length < 32 || /^SUBSTITUA_/i.test(sessionSecret)) fail('LOLA_ADMIN_SESSION_SECRET exige segredo aleatório real de pelo menos 32 caracteres.');
+if (adminApiKey.length < 32 || /^SUBSTITUA_/i.test(adminApiKey)) fail('LOLA_ADMIN_API_KEY exige chave real de pelo menos 32 caracteres.');
 if (!dataServiceUrl) fail('LOLA_DATA_SERVICE_URL é obrigatória.');
 if (publicSiteUrl) {
   let publicUrl;
@@ -43,8 +47,22 @@ if (!['http:', 'https:'].includes(upstream.protocol) || upstream.username || ups
 const loopback = ['localhost', '127.0.0.1', '::1'].includes(upstream.hostname.replace(/^\[|\]$/g, ''));
 if (production && upstream.protocol !== 'https:' && !loopback) fail('Em produção, o servidor de dados remoto exige HTTPS.');
 if (production && process.env.LOLA_ADMIN_COOKIE_SECURE !== 'true') fail('Em produção, defina LOLA_ADMIN_COOKIE_SECURE=true.');
-if (production && (host === '0.0.0.0' || host === '::') && process.env.LOLA_ADMIN_BEHIND_HTTPS_PROXY !== 'true') {
-  fail('Bind público exige proxy HTTPS explicitamente declarado.');
+const proxyEnabled = process.env.LOLA_ADMIN_BEHIND_HTTPS_PROXY === 'true';
+const localBind = ['127.0.0.1', '::1', 'localhost'].includes(host);
+if (production && !localBind && !proxyEnabled) fail('Bind fora de loopback exige proxy HTTPS explicitamente declarado.');
+const normalizeIp = (ip) => String(ip || '').replace(/^::ffff:/, '');
+const trustedProxyIps = new Set((process.env.LOLA_ADMIN_TRUSTED_PROXY_IPS || '')
+  .split(',').map((item) => normalizeIp(item.trim())).filter(Boolean));
+if ([...trustedProxyIps].some((ip) => !isIP(ip))) fail('LOLA_ADMIN_TRUSTED_PROXY_IPS deve conter somente IPs válidos, separados por vírgula.');
+if (production && proxyEnabled && trustedProxyIps.size === 0) fail('Configure LOLA_ADMIN_TRUSTED_PROXY_IPS com o IP real do reverse proxy HTTPS.');
+function clientIp(req) {
+  const peer = normalizeIp(req.socket.remoteAddress);
+  if (proxyEnabled && trustedProxyIps.has(peer)) {
+    // O proxy confiável deve SOBRESCREVER X-Real-IP, nunca repassar o valor enviado pelo cliente.
+    const forwarded = normalizeIp(req.get('x-real-ip') || '');
+    if (isIP(forwarded)) return forwarded;
+  }
+  return peer || 'unknown';
 }
 
 const sessions = new Map();
@@ -126,7 +144,7 @@ function requireCsrf(req, res, next) {
   return next();
 }
 function loginRateLimit(req, res, next) {
-  const key = req.socket.remoteAddress || 'unknown';
+  const key = clientIp(req);
   const now = Date.now();
   pruneState(now);
   if (loginBuckets.size >= MAX_LOGIN_BUCKETS && !loginBuckets.has(key)) {
@@ -171,7 +189,7 @@ app.post('/api/login', loginRateLimit, (req, res) => {
   const expiresAt = Date.now() + SESSION_TTL_MS;
   sessions.set(id, { csrf, expiresAt });
   setCookie(res, id + '.' + mac(id), Math.floor(SESSION_TTL_MS / 1000));
-  loginBuckets.delete(req.socket.remoteAddress || 'unknown');
+  loginBuckets.delete(clientIp(req));
   return res.json({ authenticated: true, csrfToken: csrf, expiresAt });
 });
 app.post('/api/logout', requireSession, requireCsrf, (req, res) => {
