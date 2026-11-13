@@ -223,6 +223,23 @@ test('encaminha ajuste absoluto de estoque somente com sessão e CSRF', async ()
   assert.equal(upstreamRequests.at(-1).key, ADMIN_KEY);
 });
 
+test('limita a 120 operações autenticadas por minuto por sessão, sem encaminhar excesso', async () => {
+  const session = await login();
+  const startingCalls = upstreamRequests.length;
+  for (let index = 0; index < 120; index += 1) {
+    const response = await fetch(`http://${HOST}:${bffPort}/api/admin/catalog`, {
+      headers: { cookie: session.cookie },
+    });
+    assert.equal(response.status, 200);
+  }
+  const blocked = await fetch(`http://${HOST}:${bffPort}/api/admin/catalog`, {
+    headers: { cookie: session.cookie },
+  });
+  assert.equal(blocked.status, 429);
+  assert.ok(Number(blocked.headers.get('retry-after')) >= 1);
+  assert.equal(upstreamRequests.length, startingCalls + 120);
+});
+
 test('aplica limite de dez tentativas de login por janela', async () => {
   for (let index = 0; index < 10; index += 1) {
     const response = await fetch(`http://${HOST}:${bffPort}/api/login`, {
