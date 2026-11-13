@@ -239,3 +239,81 @@ test('aplica limite de dez tentativas de login por janela', async () => {
   });
   assert.equal(blocked.status, 429);
 });
+
+
+test('bloqueia credenciais de exemplo antes de abrir a porta', async () => {
+  const rejected = spawn(process.execPath, ['server.mjs'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      HOST: HOST,
+      PORT: String(await freePort()),
+      LOLA_ADMIN_USERNAME: 'operador',
+      LOLA_ADMIN_PASSWORD: 'SUBSTITUA_POR_SENHA_FORTE_COM_16_OU_MAIS_CARACTERES',
+      LOLA_ADMIN_SESSION_SECRET: SESSION_SECRET,
+      LOLA_DATA_SERVICE_URL: 'http://127.0.0.1:4100',
+      LOLA_ADMIN_API_KEY: ADMIN_KEY,
+      LOLA_ADMIN_COOKIE_SECURE: 'true',
+    },
+    stdio: 'ignore',
+  });
+  try {
+    const [code] = await Promise.race([
+      once(rejected, 'exit'),
+      delay(3000).then(() => { throw new Error('Processo não recusou as credenciais de exemplo.'); }),
+    ]);
+    assert.equal(code, 1);
+  } finally {
+    if (rejected.exitCode === null) rejected.kill('SIGKILL');
+  }
+});
+
+test('limita logins por cliente somente quando o proxy de origem é confiável', async () => {
+  const proxyPort = await freePort();
+  const proxyBff = spawn(process.execPath, ['server.mjs'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      NODE_ENV: 'test',
+      HOST,
+      PORT: String(proxyPort),
+      LOLA_ADMIN_USERNAME: USERNAME,
+      LOLA_ADMIN_PASSWORD: PASSWORD,
+      LOLA_ADMIN_SESSION_SECRET: SESSION_SECRET,
+      LOLA_DATA_SERVICE_URL: `http://${HOST}:${upstreamPort}`,
+      LOLA_ADMIN_API_KEY: ADMIN_KEY,
+      LOLA_ADMIN_BEHIND_HTTPS_PROXY: 'true',
+      LOLA_ADMIN_TRUSTED_PROXY_IPS: HOST,
+    },
+    stdio: 'ignore',
+  });
+  const endpoint = `http://${HOST}:${proxyPort}`;
+  try {
+    let ready = false;
+    for (let retry = 0; retry < 80; retry += 1) {
+      try { ready = (await fetch(endpoint + '/api/health')).ok; } catch {}
+      if (ready) break;
+      await delay(100);
+    }
+    assert.ok(ready, 'BFF de proxy deve iniciar');
+    async function attempt(ip, valid = false) {
+      return fetch(endpoint + '/api/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-real-ip': ip },
+        body: JSON.stringify({ username: USERNAME, password: valid ? PASSWORD : 'senha-invalida-para-teste' }),
+      });
+    }
+    for (let index = 0; index < 10; index += 1) {
+      assert.equal((await attempt('198.51.100.10')).status, 401);
+    }
+    assert.equal((await attempt('198.51.100.10', true)).status, 429);
+    assert.equal((await attempt('198.51.100.11', true)).status, 200);
+  } finally {
+    if (proxyBff.exitCode === null) {
+      proxyBff.kill('SIGTERM');
+      await Promise.race([once(proxyBff, 'exit'), delay(2000)]);
+      if (proxyBff.exitCode === null) proxyBff.kill('SIGKILL');
+    }
+  }
+});
