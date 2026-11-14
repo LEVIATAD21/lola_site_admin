@@ -2,7 +2,7 @@ import { auth, json, readJson, validProduct, ID_PATTERN, asProduct, unavailable 
 
 const SELECT = `SELECT p.id,p.name,p.category,p.description,p.price_cents,p.published,
   COALESCE(i.quantity_on_hand-i.quantity_reserved,0) AS disponivel,
-  EXISTS(SELECT 1 FROM product_photos f WHERE f.product_id=p.id) AS has_image
+  EXISTS(SELECT 1 FROM catalog_photo_index f WHERE f.product_id=p.id) AS has_image
   FROM products p LEFT JOIN inventory i ON i.product_id=p.id
   WHERE p.id=? AND p.archived_at IS NULL`;
 
@@ -39,8 +39,12 @@ export async function onRequestDelete(context) {
     if (Number(stock.quantity_on_hand || 0) !== 0 || Number(stock.quantity_reserved || 0) !== 0) {
       return json({ error: 'Zere o estoque e as reservas antes de excluir.' }, 409);
     }
+    // Cross-database deletes are not atomic. Delete the photo bytes first,
+    // then the reference and product records. Never claim success if PHOTOS_DB fails.
+    if (!context.env.PHOTOS_DB) return unavailable();
+    await context.env.PHOTOS_DB.prepare('DELETE FROM product_photos WHERE product_id=?').bind(id).run();
     await context.env.DB.batch([
-      context.env.DB.prepare('DELETE FROM product_photos WHERE product_id=?').bind(id),
+      context.env.DB.prepare('DELETE FROM catalog_photo_index WHERE product_id=?').bind(id),
       context.env.DB.prepare('DELETE FROM inventory WHERE product_id=?').bind(id),
       context.env.DB.prepare('DELETE FROM products WHERE id=?').bind(id),
     ]);
