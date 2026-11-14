@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Boxes, CheckCircle2, ChevronRight, CircleAlert, ExternalLink, ImagePlus,
   LayoutDashboard, LogOut, Package, Pencil, Plus, RefreshCw, Save, ShieldCheck,
-  ShoppingBag, Trash2, Upload, X,
+  ShoppingBag, Trash2, Upload, X, ReceiptText, RotateCcw,
 } from 'lucide-react';
 import './cloudflare-admin.css';
 
@@ -14,7 +14,16 @@ type Editor = {
   id: string | null; name: string; category: string; desc: string; price: string;
   stock: string; published: boolean; image: string;
 };
-type Page = 'inicio' | 'produtos' | 'estoque';
+type Page = 'inicio' | 'produtos' | 'estoque' | 'pagamentos' | 'reembolsos';
+type FinancePayment = {
+  id:string;reference:string|null;amount:number;status:string;method:string;receiptUrl:string|null;updatedAt:number
+};
+type FinanceRefund = {
+  id:string;paymentId:string;amount:number;status:string;receiptUrl:string|null;date:string|null;updatedAt:number
+};
+type FinanceData = {
+  provider:string;integrationConfigured:boolean;payments:FinancePayment[];refunds:FinanceRefund[]
+};
 const empty: Editor = { id:null,name:'',category:'Brincos',desc:'',price:'',stock:'0',published:false,image:'' };
 const money = (n:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n);
 const categories = ['Brincos','Colares','Pulseiras','Anéis','Conjuntos','Outros'];
@@ -71,6 +80,10 @@ export default function CloudflareAdmin() {
   const [preview,setPreview] = useState('');
   const [filter,setFilter] = useState('');
   const [publicUrl,setPublicUrl] = useState('');
+  const [finance,setFinance] = useState<FinanceData>({
+    provider:'asaas',integrationConfigured:false,payments:[],refunds:[],
+  });
+  const [loadingFinance,setLoadingFinance] = useState(false);
 
   useEffect(() => {
     if (!file) { setPreview(''); return; }
@@ -129,6 +142,21 @@ export default function CloudflareAdmin() {
     } catch (e) { setError(e instanceof Error?e.message:'Não foi possível consultar o banco.'); }
     finally{setLoadingProducts(false);}
   }
+
+  useEffect(() => {
+    if (auth !== 'ready' || (page !== 'pagamentos' && page !== 'reembolsos')) return;
+    let active = true;
+    setLoadingFinance(true);
+    api('/api/finance').then(data => {
+      if (active) setFinance({
+        provider:'asaas',integrationConfigured:Boolean(data.integrationConfigured),
+        payments:Array.isArray(data.payments)?data.payments:[],
+        refunds:Array.isArray(data.refunds)?data.refunds:[],
+      });
+    }).catch(e => {if(active)setError(e instanceof Error?e.message:'Falha ao consultar financeiro.');})
+      .finally(()=>{if(active)setLoadingFinance(false);});
+    return () => {active=false;};
+  }, [auth,page]);
 
   async function signIn(e:FormEvent<HTMLFormElement>){
     e.preventDefault();setError('');setBusy(true);
@@ -218,6 +246,8 @@ export default function CloudflareAdmin() {
     {id:'inicio',label:'Visão geral',icon:LayoutDashboard},
     {id:'produtos',label:'Produtos',icon:Package},
     {id:'estoque',label:'Estoque',icon:Boxes},
+    {id:'pagamentos',label:'Recibos de pagamento',icon:ReceiptText},
+    {id:'reembolsos',label:'Reembolsos',icon:RotateCcw},
   ];
 
   if(auth==='loading') return <div className="lola-login"><p>Verificando acesso seguro ao painel…</p></div>;
@@ -260,25 +290,25 @@ export default function CloudflareAdmin() {
         <main className="lola-content">
           <div className="lola-heading">
             <div><p className="lola-eyebrow">ADMINISTRAÇÃO DA LOJA</p>
-              <h1>{page==='inicio'?'Bem-vinda à LOLA':page==='produtos'?'Gerenciar produtos':'Controle de estoque'}</h1>
-              <p>{page==='inicio'?'O que você cadastrar aqui será armazenado no banco da loja.':page==='produtos'?'Cadastre fotos, títulos, descrições e preços reais.':'Altere quantidades editando cada produto.'}</p></div>
-            <button type="button" className="lola-primary" onClick={()=>edit()}><Plus size={17}/> Novo produto</button>
+              <h1>{page==='inicio'?'Bem-vinda à LOLA':page==='produtos'?'Gerenciar produtos':page==='estoque'?'Controle de estoque':page==='pagamentos'?'Recibos de pagamento':'Reembolsos de clientes'}</h1>
+              <p>{page==='inicio'?'O catálogo fica no banco principal; fotos são armazenadas em banco separado.':page==='produtos'?'Cadastre fotos, títulos, descrições e preços reais.':page==='estoque'?'Altere quantidades editando cada produto.':'Consulte somente registros recebidos do provedor de pagamentos autenticado.'}</p></div>
+            {(page==='inicio'||page==='produtos'||page==='estoque')&&<button type="button" className="lola-primary" onClick={()=>edit()}><Plus size={17}/> Novo produto</button>}
           </div>
           {error&&<div role="alert" className="lola-error lola-msg"><CircleAlert size={18}/>{error}<button onClick={()=>setError('')} aria-label="Fechar aviso"><X size={16}/></button></div>}
           {notice&&<div role="status" className="lola-success lola-msg"><CheckCircle2 size={18}/>{notice}<button onClick={()=>setNotice('')} aria-label="Fechar confirmação"><X size={16}/></button></div>}
-          <div className="lola-stats">
+          {(page==='inicio'||page==='produtos'||page==='estoque')&&<div className="lola-stats">
             <div><span>Produtos cadastrados</span><strong>{items.length}</strong><Package size={21}/></div>
             <div><span>Publicados na loja</span><strong>{published}</strong><ShoppingBag size={21}/></div>
             <div><span>Unidades em estoque</span><strong>{units}</strong><Boxes size={21}/></div>
             <div><span>Sem estoque</span><strong>{items.filter(x=>x.disponivel===0).length}</strong><CircleAlert size={21}/></div>
-          </div>
+          </div>}
           {page==='inicio'&&<section className="lola-panel lola-intro">
-            <div><h2>Seu catálogo começa aqui</h2><p>Ao criar um produto, você define nome, categoria, preço, quantidade e escolhe uma foto do celular ou computador. A foto é compactada e armazenada no D1. Você controla quando o produto aparece na vitrine pelo botão <strong>Publicar</strong>.</p>
+            <div><h2>Seu catálogo começa aqui</h2><p>Ao criar um produto, você define nome, categoria, preço, quantidade e escolhe uma foto do celular ou computador. A foto é compactada e armazenada em um D1 separado, exclusivo para imagens. Você controla quando o produto aparece na vitrine pelo botão <strong>Publicar</strong>.</p>
               <p className="lola-muted">O painel não gera produtos fictícios e não processa pagamentos enquanto a integração financeira não estiver pronta.</p>
               <button className="lola-primary" type="button" onClick={()=>edit()}><Plus size={16}/> Cadastrar primeira peça</button></div>
             <ImagePlus size={82} strokeWidth={1.2} className="lola-intro-icon"/>
           </section>}
-          {page!=='inicio'&&<section className="lola-panel">
+          {(page==='produtos'||page==='estoque')&&<section className="lola-panel">
             <div className="lola-table-heading">
               <div><h2>{page==='estoque'?'Inventário':'Catálogo'}</h2><p>{loadingProducts?'Sincronizando…':'Dados consultados diretamente no D1.'}</p></div>
               <input aria-label="Buscar produtos" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Buscar por nome ou categoria…" />
@@ -291,6 +321,41 @@ export default function CloudflareAdmin() {
                   <td><span className={'lola-status '+(x.published?'on':'off')}>{x.published?'Publicado':'Rascunho'}</span></td>
                   <td><div className="lola-table-actions"><button type="button" title="Editar" onClick={()=>edit(x)}><Pencil size={17}/></button><button type="button" title="Excluir" onClick={()=>void remove(x)} disabled={busy}><Trash2 size={17}/></button></div></td>
                 </tr>)}</tbody></table></div>}
+          </section>}
+          {(page==='pagamentos'||page==='reembolsos')&&<section className="lola-panel">
+            <div className="lola-table-heading">
+              <div>
+                <h2>{page==='pagamentos'?'Pagamentos recebidos':'Solicitações e reembolsos'}</h2>
+                <p>Dados recebidos por eventos autenticados do Asaas. Sem lançamentos fictícios.</p>
+              </div>
+              {loadingFinance&&<span className="lola-muted">Atualizando…</span>}
+            </div>
+            {!finance.integrationConfigured&&
+              <div className="lola-error lola-msg"><CircleAlert size={18}/>
+                A integração de webhooks ainda não está configurada no servidor. Não há pagamentos confirmados por esta tela.
+              </div>}
+            <p className="lola-muted">Histórico apenas de consulta. Reembolsos são executados exclusivamente no provedor após autorização.
+              Confirme a conciliação no Asaas antes de tratar um valor como recebido ou devolvido.</p>
+            {(page==='pagamentos' ? finance.payments.length===0 : finance.refunds.length===0)
+              ? <div className="lola-empty">
+                  {page==='pagamentos'?<ReceiptText size={36}/>:<RotateCcw size={36}/>}
+                  <h3>{page==='pagamentos'?'Nenhum pagamento sincronizado':'Nenhum reembolso sincronizado'}</h3>
+                  <p>Os registros aparecerão quando o provedor confirmar os eventos correspondentes.</p>
+                </div>
+              : <div className="lola-overflow">
+                {page==='pagamentos'
+                  ? <table><thead><tr><th>ID DO PAGAMENTO</th><th>REFERÊNCIA</th><th>VALOR</th><th>MÉTODO</th><th>STATUS</th><th>COMPROVANTE</th></tr></thead>
+                      <tbody>{finance.payments.map(p=><tr key={p.id}>
+                        <td>{p.id}</td><td>{p.reference||'—'}</td><td>{money(p.amount)}</td><td>{p.method}</td><td>{p.status}</td>
+                        <td>{p.receiptUrl?<a className="lola-outline" href={p.receiptUrl} target="_blank" rel="noopener noreferrer">Abrir comprovante <ExternalLink size={13}/></a>:<span className="lola-muted">Não disponibilizado pelo Asaas</span>}</td>
+                      </tr>)}</tbody></table>
+                  : <table><thead><tr><th>PAGAMENTO</th><th>VALOR DO REEMBOLSO</th><th>STATUS</th><th>DATA</th><th>COMPROVANTE</th></tr></thead>
+                      <tbody>{finance.refunds.map(r=><tr key={r.id}>
+                        <td>{r.paymentId}</td><td>{money(r.amount)}</td><td>{r.status==='DONE'?'Concluído':r.status==='PENDING'?'Pendente':r.status}</td>
+                        <td>{r.date||'—'}</td>
+                        <td>{r.receiptUrl?<a className="lola-outline" href={r.receiptUrl} target="_blank" rel="noopener noreferrer">Abrir comprovante <ExternalLink size={13}/></a>:<span className="lola-muted">Ainda não disponibilizado</span>}</td>
+                      </tr>)}</tbody></table>}
+              </div>}
           </section>}
           <div className="lola-footnote"><ShieldCheck size={17}/> Painel administrativo independente. Somente usuários autenticados podem alterar o catálogo.</div>
         </main>
