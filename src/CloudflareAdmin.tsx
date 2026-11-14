@@ -8,13 +8,14 @@ import './cloudflare-admin.css';
 
 type Product = {
   id: string; name: string; category: string; desc: string; price: number;
-  disponivel: number; published: boolean; image: string;
+  disponivel: number; published: boolean; image: string; stockTotal?:number; reserved?:number;
 };
 type Editor = {
   id: string | null; name: string; category: string; desc: string; price: string;
   stock: string; published: boolean; image: string;
 };
-type Page = 'inicio' | 'produtos' | 'estoque' | 'pagamentos' | 'reembolsos';
+type Page = 'inicio' | 'produtos' | 'estoque' | 'pagamentos' | 'reembolsos' | 'pedidos';
+type CheckoutOrder = {id:string;product_name:string;quantity:number;amount_cents:number;state:string;payment_id:string|null;created_at:number};
 type FinancePayment = {
   id:string;reference:string|null;amount:number;status:string;method:string;receiptUrl:string|null;updatedAt:number
 };
@@ -70,6 +71,8 @@ export default function CloudflareAdmin() {
   const [user, setUser] = useState('');
   const [password, setPassword] = useState('');
   const [page,setPage] = useState<Page>('inicio');
+  const [checkoutOrders,setCheckoutOrders] = useState<CheckoutOrder[]>([]);
+  const [loadingOrders,setLoadingOrders] = useState(false);
   const [items,setItems] = useState<Product[]>([]);
   const [notice,setNotice] = useState('');
   const [error,setError] = useState('');
@@ -149,7 +152,7 @@ export default function CloudflareAdmin() {
     setLoadingFinance(true);
     api('/api/finance').then(data => {
       if (active) setFinance({
-        provider:'asaas',integrationConfigured:Boolean(data.integrationConfigured),
+        provider:typeof data.provider==='string'?data.provider:'mercadopago',integrationConfigured:Boolean(data.integrationConfigured),
         payments:Array.isArray(data.payments)?data.payments:[],
         refunds:Array.isArray(data.refunds)?data.refunds:[],
       });
@@ -157,6 +160,18 @@ export default function CloudflareAdmin() {
       .finally(()=>{if(active)setLoadingFinance(false);});
     return () => {active=false;};
   }, [auth,page]);
+
+
+  async function loadCheckoutOrders(reconcile=false) {
+    setLoadingOrders(true);setError('');
+    try {
+      if(reconcile) {const result=await api('/api/admin/checkout-orders','POST',{});setNotice('Pagamentos conferidos: '+result.checked+'. Pendências de consulta: '+result.failed+'.');}
+      const data=await api('/api/admin/checkout-orders');
+      setCheckoutOrders(Array.isArray(data.orders)?data.orders:[]);
+    }catch(e){setError(e instanceof Error?e.message:'Falha ao consultar pedidos.');}
+    finally{setLoadingOrders(false);}
+  }
+  useEffect(()=>{if(auth==='ready'&&page==='pedidos')void loadCheckoutOrders();},[auth,page]);
 
   async function consultAsaasHistory(){
     setLoadingFinance(true);setError('');
@@ -197,7 +212,7 @@ export default function CloudflareAdmin() {
     setFile(null);setError('');
     if(!product) setEditor({...empty});
     else setEditor({id:product.id,name:product.name,category:product.category,
-      desc:product.desc,price:String(product.price),stock:String(product.disponivel),
+      desc:product.desc,price:String(product.price),stock:String(product.stockTotal??product.disponivel),
       published:product.published,image:product.image});
   }
 
@@ -262,6 +277,7 @@ export default function CloudflareAdmin() {
     {id:'inicio',label:'Visão geral',icon:LayoutDashboard},
     {id:'produtos',label:'Produtos',icon:Package},
     {id:'estoque',label:'Estoque',icon:Boxes},
+    {id:'pedidos',label:'Pedidos da loja',icon:ShoppingBag},
     {id:'pagamentos',label:'Recibos de pagamento',icon:ReceiptText},
     {id:'reembolsos',label:'Reembolsos',icon:RotateCcw},
   ];
@@ -306,7 +322,7 @@ export default function CloudflareAdmin() {
         <main className="lola-content">
           <div className="lola-heading">
             <div><p className="lola-eyebrow">ADMINISTRAÇÃO DA LOJA</p>
-              <h1>{page==='inicio'?'Bem-vinda à LOLA':page==='produtos'?'Gerenciar produtos':page==='estoque'?'Controle de estoque':page==='pagamentos'?'Recibos de pagamento':'Reembolsos de clientes'}</h1>
+              <h1>{page==='inicio'?'Bem-vinda à LOLA':page==='produtos'?'Gerenciar produtos':page==='estoque'?'Controle de estoque':page==='pedidos'?'Pedidos da loja':page==='pagamentos'?'Recibos de pagamento':'Reembolsos de clientes'}</h1>
               <p>{page==='inicio'?'O catálogo fica no banco principal; fotos são armazenadas em banco separado.':page==='produtos'?'Cadastre fotos, títulos, descrições e preços reais.':page==='estoque'?'Altere quantidades editando cada produto.':'Consulte somente registros recebidos do provedor de pagamentos autenticado.'}</p></div>
             {(page==='inicio'||page==='produtos'||page==='estoque')&&<button type="button" className="lola-primary" onClick={()=>edit()}><Plus size={17}/> Novo produto</button>}
           </div>
@@ -338,18 +354,29 @@ export default function CloudflareAdmin() {
                   <td><div className="lola-table-actions"><button type="button" title="Editar" onClick={()=>edit(x)}><Pencil size={17}/></button><button type="button" title="Excluir" onClick={()=>void remove(x)} disabled={busy}><Trash2 size={17}/></button></div></td>
                 </tr>)}</tbody></table></div>}
           </section>}
+
+          {page==='pedidos'&&<section className="lola-panel">
+            <div className="lola-table-heading"><div><h2>Pedidos e pagamentos da loja</h2><p>O estoque é reservado ao iniciar o pedido e debitado somente após a aprovação confirmada.</p></div>
+              <div className="lola-top-actions"><button type="button" className="lola-outline" disabled={loadingOrders} onClick={()=>void loadCheckoutOrders()}><RefreshCw size={15}/> Atualizar pedidos</button>
+              <button type="button" className="lola-outline" disabled={loadingOrders} onClick={()=>void loadCheckoutOrders(true)}>Conferir pagamentos</button></div>
+            </div>
+            {loadingOrders&&<p role="status">Consultando pedidos...</p>}
+            {checkoutOrders.length===0?<p className="lola-muted">Nenhum pedido registrado no checkout.</p>:<div className="lola-overflow"><table><thead><tr><th>PEDIDO</th><th>PEÇA</th><th>QUANTIDADE</th><th>TOTAL</th><th>STATUS</th><th>PAGAMENTO</th></tr></thead>
+            <tbody>{checkoutOrders.map(o=><tr key={o.id}><td>{o.id}</td><td>{o.product_name}</td><td>{o.quantity}</td><td>{money(o.amount_cents/100)}</td><td>{({draft:'Aguardando dados',processing:'Em verificação',pending:'Aguardando pagamento',approved:'Pago',rejected:'Recusado',cancelled:'Cancelado',expired:'Expirado',refunded:'Estornado',charged_back:'Contestado'} as Record<string,string>)[o.state]||o.state}</td><td>{o.payment_id||'—'}</td></tr>)}</tbody></table></div>}
+          </section>}
+
           {(page==='pagamentos'||page==='reembolsos')&&<section className="lola-panel">
             <div className="lola-table-heading">
               <div>
                 <h2>{page==='pagamentos'?'Pagamentos recebidos':'Solicitações e reembolsos'}</h2>
-                <p>Dados recebidos por eventos autenticados do Asaas. Sem lançamentos fictícios.</p>
+                <p>Dados confirmados pelo {finance.provider==='mercadopago'?'Mercado Pago':'Asaas'}. Sem lançamentos fictícios.</p>
               </div>
               <div className="lola-top-actions">
                 {loadingFinance&&<span className="lola-muted">Atualizando…</span>}
-                <button type="button" className="lola-outline" disabled={loadingFinance}
+                {finance.provider==='asaas'&&<button type="button" className="lola-outline" disabled={loadingFinance}
                   onClick={()=>void consultAsaasHistory()}>
                   <RefreshCw size={15}/> Consultar histórico no Asaas
-                </button>
+                </button>}
               </div>
             </div>
             {!finance.integrationConfigured&&
@@ -357,7 +384,7 @@ export default function CloudflareAdmin() {
                 A integração de webhooks ainda não está configurada no servidor. Não há pagamentos confirmados por esta tela.
               </div>}
             <p className="lola-muted">Histórico apenas de consulta. Reembolsos são executados exclusivamente no provedor após autorização.
-              Confirme a conciliação no Asaas antes de tratar um valor como recebido ou devolvido.</p>
+              Confirme a conciliação no provedor antes de tratar um valor como recebido ou devolvido. Reembolsos parciais devem ser consultados no painel do provedor.</p>
             {(page==='pagamentos' ? finance.payments.length===0 : finance.refunds.length===0)
               ? <div className="lola-empty">
                   {page==='pagamentos'?<ReceiptText size={36}/>:<RotateCcw size={36}/>}
@@ -369,7 +396,7 @@ export default function CloudflareAdmin() {
                   ? <table><thead><tr><th>ID DO PAGAMENTO</th><th>REFERÊNCIA</th><th>VALOR</th><th>MÉTODO</th><th>STATUS</th><th>COMPROVANTE</th></tr></thead>
                       <tbody>{finance.payments.map(p=><tr key={p.id}>
                         <td>{p.id}</td><td>{p.reference||'—'}</td><td>{money(p.amount)}</td><td>{p.method}</td><td>{p.status}</td>
-                        <td>{p.receiptUrl?<a className="lola-outline" href={p.receiptUrl} target="_blank" rel="noopener noreferrer">Abrir comprovante <ExternalLink size={13}/></a>:<span className="lola-muted">Não disponibilizado pelo Asaas</span>}</td>
+                        <td>{p.receiptUrl?<a className="lola-outline" href={p.receiptUrl} target="_blank" rel="noopener noreferrer">Abrir comprovante <ExternalLink size={13}/></a>:<span className="lola-muted">Consulte no painel do provedor</span>}</td>
                       </tr>)}</tbody></table>
                   : <table><thead><tr><th>PAGAMENTO</th><th>VALOR DO REEMBOLSO</th><th>STATUS</th><th>DATA</th><th>COMPROVANTE</th></tr></thead>
                       <tbody>{finance.refunds.map(r=><tr key={r.id}>
@@ -413,3 +440,4 @@ export default function CloudflareAdmin() {
     </div>
   );
 }
+

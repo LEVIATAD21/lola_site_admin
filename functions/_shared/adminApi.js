@@ -120,6 +120,7 @@ export function asProduct(p) {
   const id = String(p.id);
   return {
     id, name: String(p.name), category: String(p.category),
+    stockTotal: Number(p.quantity_on_hand ?? p.disponivel ?? 0), reserved: Number(p.quantity_reserved ?? 0),
     price: Number(p.price_cents) / 100,
     desc: String(p.description ?? ''),
     disponivel: Number(p.disponivel ?? 0),
