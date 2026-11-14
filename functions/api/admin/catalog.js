@@ -2,7 +2,7 @@ import { auth, json, readJson, validProduct, asProduct, unavailable } from '../.
 
 const SELECT = `SELECT p.id,p.name,p.category,p.description,p.price_cents,p.published,
   COALESCE(i.quantity_on_hand-i.quantity_reserved,0) AS disponivel,
-  EXISTS(SELECT 1 FROM product_photos f WHERE f.product_id=p.id) AS has_image
+  EXISTS(SELECT 1 FROM catalog_photo_index f WHERE f.product_id=p.id) AS has_image
   FROM products p LEFT JOIN inventory i ON i.product_id=p.id
   WHERE p.archived_at IS NULL`;
 
