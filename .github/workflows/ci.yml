@@ -18,4 +18,19 @@ jobs:
       - run: npm ci
       - run: npm audit
       - run: npm test
+      - name: Cloudflare API security and photo contracts
+        run: |
+          node --check functions/_shared/adminApi.js
+          node --check functions/api/login.js
+          node --check functions/api/session.js
+          node --check functions/api/logout.js
+          node --check functions/api/health.js
+          node --check functions/api/public-config.js
+          node --check functions/api/admin/catalog.js
+          node --check 'functions/api/admin/catalog/[id].js'
+          node --check 'functions/api/admin/imagens/[id].js'
+          node --check functions/api/estoque/definir.js
+          node --test tests/cloudflare.test.mjs
       - run: npm run build
+      - name: Validate public admin distribution
+        run: node scripts/verify-pages-admin.mjs
