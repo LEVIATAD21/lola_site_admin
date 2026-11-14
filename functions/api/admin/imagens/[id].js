@@ -20,7 +20,8 @@ export async function onRequestGet(context) {
   const id = idOf(context);
   if (!id) return json({ error: 'ID inválido.' }, 400);
   try {
-    const photo = await context.env.DB.prepare('SELECT mime_type,bytes FROM product_photos WHERE product_id=?').bind(id).first();
+    if (!context.env.PHOTOS_DB) return unavailable();
+    const photo = await context.env.PHOTOS_DB.prepare('SELECT mime_type,bytes FROM product_photos WHERE product_id=?').bind(id).first();
     if (!photo) return json({ error: 'Imagem não encontrada.' }, 404);
     const bytes = new Uint8Array(photo.bytes);
     if (!TYPES.has(photo.mime_type) || bytes.byteLength < 20 || bytes.byteLength > MAX_BYTES) return unavailable();
@@ -42,15 +43,20 @@ export async function onRequestPost(context) {
   const length = Number(context.request.headers.get('content-length') ?? 0);
   if (length > MAX_BYTES) return json({ error: 'Foto excede 300 KiB após compactação.' }, 413);
   try {
+    if (!context.env.PHOTOS_DB) return unavailable();
     const bytes = await context.request.arrayBuffer();
     if (bytes.byteLength < 20 || bytes.byteLength > MAX_BYTES || !matchesType(bytes,mime))
       return json({ error: 'Formato inválido ou imagem acima de 300 KiB.' }, 413);
     const product = await context.env.DB.prepare('SELECT id FROM products WHERE id=? AND archived_at IS NULL').bind(id).first();
     if (!product) return json({ error: 'Cadastre o produto antes de enviar foto.' }, 404);
-    await context.env.DB.prepare(`INSERT INTO product_photos(product_id,mime_type,bytes,updated_at)
+    await context.env.PHOTOS_DB.prepare(`INSERT INTO product_photos(product_id,mime_type,bytes,updated_at)
       VALUES (?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET
       mime_type=excluded.mime_type,bytes=excluded.bytes,updated_at=excluded.updated_at`
     ).bind(id,mime,bytes,Math.floor(Date.now()/1000)).run();
+    // The main DB only contains a photo presence index, not the media bytes.
+    await context.env.DB.prepare(`INSERT INTO catalog_photo_index(product_id,updated_at)
+      VALUES (?,?) ON CONFLICT(product_id) DO UPDATE SET updated_at=excluded.updated_at`
+    ).bind(id,Math.floor(Date.now()/1000)).run();
     return json({ success:true, image: '/api/admin/imagens/'+id });
   } catch { return unavailable(); }
 }
@@ -60,7 +66,10 @@ export async function onRequestDelete(context) {
   const id = idOf(context);
   if (!id) return json({ error: 'ID inválido.' }, 400);
   try {
-    await context.env.DB.prepare('DELETE FROM product_photos WHERE product_id=?').bind(id).run();
+    if (!context.env.PHOTOS_DB) return unavailable();
+    // Delete the actual bytes, not merely the catalog reference.
+    await context.env.PHOTOS_DB.prepare('DELETE FROM product_photos WHERE product_id=?').bind(id).run();
+    await context.env.DB.prepare('DELETE FROM catalog_photo_index WHERE product_id=?').bind(id).run();
     return json({ success:true });
   } catch { return unavailable(); }
 }
