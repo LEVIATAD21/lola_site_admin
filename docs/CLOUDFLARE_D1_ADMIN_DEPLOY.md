@@ -1,5 +1,8 @@
 # LOLA Admin — Cloudflare Pages / D1, sem dados fictícios
 
+> **ATUALIZAÇÃO 14/11/2026 — ESTE GUIA NÃO É MAIS O FLUXO ATUAL.** Agora as fotos ficam **somente** no banco D1 separado `PHOTOS_DB` e o painel inclui telas financeiras de consulta. Use [o novo guia de dois D1 e Asaas](./PHOTO_DB_AND_ASAAS_FINANCE_2026-11-14.md). Não instale a antiga tabela `product_photos` no DB principal.
+
+
 **Objetivo:** administrar os produtos exibidos na vitrine real usando somente o banco D1 compartilhado. Não criar produtos de exemplo. A primeira publicação contém **0 produtos e 0 unidades** se as tabelas estiverem vazias.
 
 ## Arquitetura
