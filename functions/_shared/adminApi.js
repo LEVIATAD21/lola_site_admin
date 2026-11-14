@@ -27,7 +27,7 @@ export function configured(env) {
   return Boolean(env?.DB && typeof env.LOLA_ADMIN_USERNAME === 'string' &&
     env.LOLA_ADMIN_USERNAME.trim().length >= 3 &&
     typeof env.LOLA_ADMIN_PASSWORD === 'string' &&
-    env.LOLA_ADMIN_PASSWORD.length >= 20 &&
+    env.LOLA_ADMIN_PASSWORD.length >= 10 &&
     typeof env.LOLA_ADMIN_SESSION_SECRET === 'string' &&
     env.LOLA_ADMIN_SESSION_SECRET.length >= 32);
 }
