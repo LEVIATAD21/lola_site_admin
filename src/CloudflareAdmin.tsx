@@ -165,7 +165,7 @@ export default function CloudflareAdmin() {
       setFinance(prev=>({
         ...prev,payments:Array.isArray(data.payments)?data.payments:[],
         refunds:Array.isArray(data.refunds)?data.refunds:[],
-        integrationConfigured:true,
+        integrationConfigured:prev.integrationConfigured,
       }));
       setNotice(data.hasMore
         ? 'Exibidos os primeiros 50 pagamentos do Asaas. Consulte o painel do provedor para histórico completo.'
