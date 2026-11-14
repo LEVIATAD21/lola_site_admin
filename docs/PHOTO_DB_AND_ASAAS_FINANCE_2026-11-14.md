@@ -67,6 +67,14 @@ SELECT COUNT(*) AS reembolsos FROM finance_refunds;
 
 **Importante:** o registro de webhook sozinho não substitui conciliação com a API do provedor; eventos podem chegar repetidos ou fora de ordem, e os links de comprovantes podem estar indisponíveis até o processamento terminar.
 
+## Consultar comprovantes anteriores ao início do webhook
+
+O Admin possui um botão **Consultar histórico no Asaas**, que faz uma consulta **GET, somente leitura**, aos **primeiros 50 pagamentos** da conta, sem salvar dados completos de clientes e sem permitir cobrança ou reembolso. Isso ajuda a localizar transações anteriores à instalação do webhook. A consulta é manual, sob login administrativo, para reduzir chamadas desnecessárias e riscos de limite de API.
+
+Configure no **Admin Pages → Secrets** o valor `LOLA_ASAAS_API_KEY` (chave de API da conta com privilégios mínimos de leitura, nunca no navegador) e a variável de texto `LOLA_ASAAS_ENV` como **`sandbox`** para testes ou **`production`** somente com a conta real aprovada. Não confunda com o secret de webhook `LOLA_ASAAS_WEBHOOK_TOKEN`: são credenciais diferentes.
+
+Somente URLs HTTPS originadas de `asaas.com` são mostradas como comprovantes. Pode haver cobranças sem comprovantes emitidos ou reembolsos ainda pendentes. O histórico completo, com paginação, permanece acessível no painel oficial do Asaas.
+
 ## Hospedagem e variáveis do Admin
 
 Além dos bindings `DB` e `PHOTOS_DB`, o Admin requer os secrets `LOLA_ADMIN_USERNAME`, `LOLA_ADMIN_PASSWORD` e `LOLA_ADMIN_SESSION_SECRET`; opcionalmente `LOLA_PUBLIC_SITE_URL`. Nunca compartilhe senhas por chat.
