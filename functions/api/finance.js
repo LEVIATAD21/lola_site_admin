@@ -1,3 +1,4 @@
+import {mpConfigured} from '../_shared/mercadoPago.js';
 import { auth, json, unavailable } from '../_shared/adminApi.js';
 
 // Finance ledger is intentionally stored in DB, NEVER in PHOTOS_DB.
@@ -16,6 +17,13 @@ export async function onRequestGet(context) {
   const session = await auth(context);
   if (session.error) return session.error;
   try {
+    if(context.env.LOLA_PAYMENT_PROVIDER==='mercadopago') {
+      const result=await context.env.DB.prepare("SELECT id,payment_id,amount_cents,state,method,updated_at FROM mp_orders WHERE payment_id IS NOT NULL ORDER BY updated_at DESC LIMIT 100").all();
+      const rows=result.results||[];
+      return json({provider:'mercadopago',integrationConfigured:mpConfigured(context.env),
+       payments:rows.map(p=>({id:p.payment_id,reference:p.id,amount:p.amount_cents/100,status:p.state,method:p.method,receiptUrl:null,updatedAt:p.updated_at})),
+       refunds:rows.filter(p=>p.state==='refunded').map(p=>({id:p.id,paymentId:p.payment_id,amount:p.amount_cents/100,status:'DONE',receiptUrl:null,date:new Date(p.updated_at*1000).toISOString(),updatedAt:p.updated_at}))});
+    }
     const [payments, refunds] = await Promise.all([
       context.env.DB.prepare(`SELECT payment_id, external_reference, amount_cents,
         status, billing_type, receipt_url, updated_at
@@ -46,3 +54,4 @@ export async function onRequestGet(context) {
     });
   } catch { return unavailable(); }
 }
+
