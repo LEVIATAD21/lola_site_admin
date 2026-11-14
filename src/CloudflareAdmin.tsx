@@ -158,6 +158,22 @@ export default function CloudflareAdmin() {
     return () => {active=false;};
   }, [auth,page]);
 
+  async function consultAsaasHistory(){
+    setLoadingFinance(true);setError('');
+    try {
+      const data=await api('/api/finance/live');
+      setFinance(prev=>({
+        ...prev,payments:Array.isArray(data.payments)?data.payments:[],
+        refunds:Array.isArray(data.refunds)?data.refunds:[],
+        integrationConfigured:true,
+      }));
+      setNotice(data.hasMore
+        ? 'Exibidos os primeiros 50 pagamentos do Asaas. Consulte o painel do provedor para histórico completo.'
+        : 'Histórico consultado diretamente no Asaas, sem gravar dados financeiros no navegador.');
+    } catch(e) {setError(e instanceof Error?e.message:'Não foi possível consultar o Asaas.');}
+    finally {setLoadingFinance(false);}
+  }
+
   async function signIn(e:FormEvent<HTMLFormElement>){
     e.preventDefault();setError('');setBusy(true);
     try {
@@ -328,7 +344,13 @@ export default function CloudflareAdmin() {
                 <h2>{page==='pagamentos'?'Pagamentos recebidos':'Solicitações e reembolsos'}</h2>
                 <p>Dados recebidos por eventos autenticados do Asaas. Sem lançamentos fictícios.</p>
               </div>
-              {loadingFinance&&<span className="lola-muted">Atualizando…</span>}
+              <div className="lola-top-actions">
+                {loadingFinance&&<span className="lola-muted">Atualizando…</span>}
+                <button type="button" className="lola-outline" disabled={loadingFinance}
+                  onClick={()=>void consultAsaasHistory()}>
+                  <RefreshCw size={15}/> Consultar histórico no Asaas
+                </button>
+              </div>
             </div>
             {!finance.integrationConfigured&&
               <div className="lola-error lola-msg"><CircleAlert size={18}/>
