@@ -15,3 +15,10 @@
     Referrer-Policy = "no-referrer"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
     Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'"
+
+# Keep browser requests and session cookies on the Netlify admin origin.
+[[redirects]]
+  from = "/api/*"
+  to = "https://lola-admin-api.pages.dev/api/:splat"
+  status = 200
+  force = true

@@ -62,7 +62,9 @@ export function cookieToken(request) {
 }
 export function originOkay(request) {
   const origin = request.headers.get('origin');
-  return Boolean(origin && origin === new URL(request.url).origin);
+  // Netlify proxies /api to this backend; only the deployed storefront origin is trusted.
+  return Boolean(origin && (origin === new URL(request.url).origin ||
+    origin === 'https://lola-inox-admin.netlify.app'));
 }
 export async function auth(context, requireCsrf = false) {
   if (!configured(context.env)) return { error: unavailable() };
