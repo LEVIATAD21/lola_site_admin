@@ -1,4 +1,4 @@
-import { configured, json, unavailable, readJson, originOkay, sha256, same, randomToken, sessionCookie } from '../_shared/adminApi.js';
+import { configured, json, unavailable, readJson, originOkay, sha256, same, randomToken, sessionCookie, hmac } from '../_shared/adminApi.js';
 
 export async function onRequestPost(context) {
   if (!configured(context.env)) return unavailable();
@@ -31,7 +31,7 @@ export async function onRequestPost(context) {
       context.env.DB.prepare('INSERT INTO admin_sessions(token_hash,expires_at,created_at) VALUES (?,?,?)').bind(tokenHash,now+28800,now),
       context.env.DB.prepare('DELETE FROM admin_login_limits WHERE key_hash=?').bind(key),
     ]);
-    const csrf = await (await import('../_shared/adminApi.js')).hmac(context.env.LOLA_ADMIN_SESSION_SECRET, 'csrf:' + token);
+    const csrf = await hmac(context.env.LOLA_ADMIN_SESSION_SECRET, 'csrf:' + token);
     return json({ authenticated: true, csrfToken: csrf, expiresAt: (now+28800)*1000 }, 200,
       { 'set-cookie': sessionCookie(token) });
   } catch {
